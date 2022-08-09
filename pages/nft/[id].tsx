@@ -2,6 +2,7 @@ import Head from 'next/head';
 import { useDisconnect, useMetamask, useAddress } from '@thirdweb-dev/react';
 import { sanityClient, urlFor } from '../../sanity';
 import { Collection } from '../../typings';
+import Link from 'next/link';
 
 interface Props {
   collection: Collection;
@@ -40,13 +41,15 @@ const Nft = ({ collection }: Props) => {
       <div className="flex flex-col flex-1 p-12 lg:col-span-6">
         {/* header */}
         <header className="flex items-center justify-between">
-          <h1 className="text-xl cursor-pointer w-52 font-extralight sm:w-80">
-            the{' '}
-            <span className="font-extrabold underline decoration-pink-600/50">
-              NFT
-            </span>{' '}
-            marketplace
-          </h1>
+          <Link href="/">
+            <h1 className="text-xl cursor-pointer w-52 font-extralight sm:w-80">
+              the{' '}
+              <span className="font-extrabold underline decoration-pink-600/50">
+                NFT
+              </span>{' '}
+              marketplace
+            </h1>
+          </Link>
 
           <button
             className="px-4 py-2 text-xs font-bold text-white rounded-full bg-rose-400 lg:px-5 lg:py-3 lg:text-base"
