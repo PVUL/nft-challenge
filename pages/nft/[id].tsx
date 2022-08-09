@@ -1,14 +1,19 @@
 import Head from 'next/head';
 import { useDisconnect, useMetamask, useAddress } from '@thirdweb-dev/react';
+import { sanityClient, urlFor } from '../../sanity';
+import { Collection } from '../../typings';
 
+interface Props {
+  collection: Collection;
+}
 
-
-
-const Nft = () => {
+const Nft = ({ collection }: Props) => {
   const address = useAddress();
+  const connectWithMetamask = useMetamask();
+  const disconnect = useDisconnect();
 
   return (
-<div className="flex flex-col h-screen lg:grid lg:grid-cols-10">
+    <div className="flex flex-col h-screen lg:grid lg:grid-cols-10">
       <Head>
         <title>NFT Challenge</title>
         <link rel="icon" href="/favicon.ico" />
@@ -20,7 +25,7 @@ const Nft = () => {
           <div className="rounded-xl bg-gradient-to-br from-yellow-400 to-purple-600 p-1.5">
             <img
               className="object-center w-44 rounded-xl lg:h-96 lg:w-72"
-              src="https://images.unsplash.com/photo-1656203549852-0fee2be87ffb?ixlib=rb-1.2.1&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=686&q=80"
+              src={urlFor(collection.previewImage).url()}
               alt=""
             />
           </div>
@@ -63,12 +68,13 @@ const Nft = () => {
         <div className="flex flex-col items-center flex-1 mt-10 space-y-6 text-center lg:justify-center lg:space-y-0">
           <img
             className="object-cover pb-10 w-80 lg:h-40"
-            src="https://images.unsplash.com/photo-1656356594492-b4d17dddbbe8?ixlib=rb-1.2.1&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1171&q=80"
+            src={urlFor(collection.mainImage).url()}
             alt=""
           />
           <h1 className="text-3xl font-bold lg:text-5xl lg:font-extrabold">
-            this is the first collection drop her
+            {collection.nftCollectionName}
           </h1>
+          <p className="py-2">{collection.description}</p>
           <p className="pt-2 text-xl text-green-500">13 / 21 claimed</p>
         </div>
 
@@ -80,7 +86,53 @@ const Nft = () => {
         </footer>
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default Nft
+// we're doing SSR right now - need to evaluate if we should move to SSG + ISR
+// SSG might make sense here...
+// note: can move to SSG with `getStaticProps` and `getStaticPaths`
+export const getServerSideProps = async ({ params }) => {
+  const query = `*[_type == "collection" && slug.current == $id][0]{
+    _id,
+    title,
+    address,
+    description,
+    nftCollectionName,
+    mainImage {
+      asset
+    },
+    previewImage {
+      asset
+    },
+    slug {
+      current
+    },
+    creator-> {
+      _id,
+      name,
+      address,
+      slug {
+        current
+      },
+    },
+  }`;
+
+  const collection = await sanityClient.fetch(query, {
+    id: params?.id,
+  });
+
+  if (!collection) {
+    return {
+      notFound: true,
+    };
+  }
+
+  return {
+    props: {
+      collection,
+    },
+  };
+};
+
+export default Nft;
