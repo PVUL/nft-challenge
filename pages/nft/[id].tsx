@@ -1,17 +1,84 @@
 import Head from 'next/head';
-import { useDisconnect, useMetamask, useAddress } from '@thirdweb-dev/react';
+import {
+  useDisconnect,
+  useMetamask,
+  useAddress,
+  useNFTDrop,
+  useNFTs,
+  ThirdwebNftMedia,
+} from '@thirdweb-dev/react';
 import { sanityClient, urlFor } from '../../sanity';
 import { Collection } from '../../typings';
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 
 interface Props {
   collection: Collection;
 }
 
 const Nft = ({ collection }: Props) => {
+  const [claimedSupply, setClaimedSupply] = useState<number>(0);
+  const [totalSupply, setTotalSupply] = useState<number>(0);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [priceInEth, setPriceInEth] = useState<string>();
+  const contract = useNFTDrop(collection.address);
+  const { data: nfts, isLoading } = useNFTs(contract);
+
   const address = useAddress();
   const connectWithMetamask = useMetamask();
   const disconnect = useDisconnect();
+
+  useEffect(() => {
+    if (!contract) return;
+    const fetchPrice = async () => {
+      const claimConditions = await contract.claimConditions.getAll();
+      setPriceInEth(claimConditions?.[0].currencyMetadata.displayValue);
+    };
+
+    fetchPrice();
+  }, []);
+
+  useEffect(() => {
+    if (!contract) return;
+
+    const fetchcontractData = async () => {
+      setLoading(true);
+      const claimed = await contract.getAllClaimed();
+      const totalSupply = await contract.totalSupply();
+
+      setClaimedSupply(claimed.length);
+      setTotalSupply(totalSupply?.toNumber());
+      setLoading(false);
+    };
+
+    fetchcontractData();
+  }, [contract]);
+
+  const mintNft = () => {
+    // fire off when purchase is made
+    if (!contract || !address) return;
+    const mintQty = 1; // the quantity of NFT to be minted
+
+    setLoading(true);
+    // this "claiming" process takes awhile, so we should think about how to not lock up the UI!
+    contract
+      .claimTo(address, mintQty)
+      .then(async (tx) => {
+        const receipt = tx[0].receipt; // transaction receipt
+        const claimedTokenId = tx[0].id; // id of NFT claimed
+        const claimedNft = await tx[0].data(); // optional - get the claimed NFT metadata
+
+        console.log(receipt);
+        console.log(claimedTokenId);
+        console.log(claimedNft);
+      })
+      .catch((err) => {
+        console.log(err);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  };
 
   return (
     <div className="flex flex-col h-screen lg:grid lg:grid-cols-10">
@@ -78,13 +145,54 @@ const Nft = ({ collection }: Props) => {
             {collection.nftCollectionName}
           </h1>
           <p className="py-2">{collection.description}</p>
-          <p className="pt-2 text-xl text-green-500">13 / 21 claimed</p>
+          {loading ? (
+            <p className="pt-2 text-xl text-green-500 animate-pulse">
+              loading...
+            </p>
+          ) : (
+            <p className="pt-2 text-xl text-green-500">
+              {claimedSupply} / {totalSupply} claimed
+            </p>
+          )}
+
+          <div>
+            {isLoading ? (
+              <div>Loading...</div>
+            ) : (
+              <div>
+                {nfts?.map((nft, id) => (
+                  <>
+                    <ThirdwebNftMedia key={id} metadata={nft.metadata} />
+                    <h3>name: {nft.metadata.name}</h3>
+                    <h3>description: {nft.metadata.description}</h3>
+                    <h3>uri: {nft.metadata.uri}</h3>
+                    <h3>supply: {nft.supply}</h3>
+                    <h3>owner: {nft.owner}</h3>
+                    <br />
+                  </>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* footer */}
         <footer>
-          <button className="w-full h-16 mt-10 font-bold text-white bg-red-500 rounded-full">
-            mint this NFT (0.01 ETH)
+          <button
+            onClick={mintNft}
+            disabled={loading || claimedSupply === totalSupply || !address}
+            className="w-full h-16 mt-10 font-bold text-white bg-red-500 rounded-full disabled:bg-gray-400"
+          >
+            {/* chaining ternary's - might want to move this into another function  */}
+            {loading ? (
+              <>loading...</>
+            ) : claimedSupply === totalSupply ? (
+              <>Sold out</>
+            ) : !address ? (
+              <>sign in to mint</>
+            ) : (
+              <span>mint this NFT ({priceInEth} ETH)</span>
+            )}
           </button>
         </footer>
       </div>
